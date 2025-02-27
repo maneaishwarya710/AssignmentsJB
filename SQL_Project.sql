@@ -61,6 +61,7 @@ serviceId int primary key,
 serviceName varchar(70),
 price decimal(10,2)
 );
+select * from HotelServices;
 
 --Hotel Branch Table
 create table HotelBranches(
@@ -98,9 +99,13 @@ select * from HotelRooms where roomId not in (select roomId from HotelBookings);
 --3.Subqueries
 --2.3.1
 select c.customerId,c.customerName from HotelBookings b inner join HotelCustomer c on b.customerId=c.CustomerId  group by c.customerId, c.customerName having count(b.bookingId)>1; 
+--using subquery
+select distinct customerId from HotelBookings where customerId in(select customerId from HotelBookings group by customerId having count(bookingId)>1);
 
 --2.3.2
 select max(totalAmount) from HotelBookings;
+--using subquery
+select * from HotelBookings where totalAmount=(select max(totalAmount) from HotelBookings);
 
 --4.Views
 create view HotelActiveBookings as
@@ -151,6 +156,46 @@ begin
 end;
 
 delete from HotelBookings where BookingId=3;
+
+--trigger on hotel bookings on insert to update room status
+create trigger trgr_roomStatusUpdate
+on HotelBookings
+after insert
+as
+begin
+	update HotelRooms set roomStatus='Occupied' where roomId in (select roomId from inserted);
+	print 'Room status updated for booked room!';
+end;
+
+drop trigger trgr_roomStatusUpdate;
+select * from HotelRooms;
+INSERT INTO HotelBookings (bookingId, customerId, roomId, checkInDate, checkOutDate, totalAmount)
+VALUES (14, 7, 3, '2025-03-01', '2025-03-03', 500.00);
+
+INSERT INTO HotelBookings (bookingId, customerId, roomId, checkInDate, checkOutDate, totalAmount)
+VALUES (16, 7, 1, '2025-03-01', '2025-03-03', 500.00);
+
+--trigger for updating total amount in Bookings table when a service is booked
+create trigger bookingSer_trgr
+on ServicesForBooking
+after insert
+as
+begin
+	declare @payment decimal(10,2);
+	declare @qnty int;
+	select @payment=(select totalPrice from inserted);
+	select @qnty=(select quantity from inserted);
+	update HotelBookings set totalAmount=totalAmount+(@payment*@qnty) where bookingId=(select bookingId from inserted);
+	print 'Total amount in booking table updated!';
+end;
+
+select * from HotelBookings;
+select * from ServicesForBooking;
+INSERT INTO ServicesForBooking (serviceId, bookingId, quantity, TotalPrice)
+VALUES (2, 2, 1, 15.00);
+INSERT INTO ServicesForBooking (serviceId, bookingId, quantity, TotalPrice)
+VALUES (2, 16, 2, 25);
+
 
 --Security & privileges
 
@@ -204,6 +249,14 @@ KEY INDEX ui_roomId;
 SELECT * 
 FROM HotelRooms
 WHERE CONTAINS(roomType, 'Suite') AND CONTAINS(roomStatus, 'Available');
+
+create unique index unq_idx_pymt on HotelPayments(paymantId);
+
+create fulltext index on HotelPayments(paymentMethod) key index unq_idx_pymt;
+
+select * from HotelPayments where contains(paymentMethod, 'cash');
+
+select * from HotelCustomer where customerName like 'J%';
 
 
 
